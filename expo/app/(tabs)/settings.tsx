@@ -9,19 +9,55 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { MapPin, DollarSign, Trash2, ChevronRight, Store } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { MapPin, DollarSign, Trash2, ChevronRight, Store, ShieldCheck, RotateCcw, Sparkles } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useCart } from '@/providers/CartProvider';
+import { usePurchases } from '@/providers/PurchaseProvider';
 import { getStateForZip } from '@/constants/taxRates';
 
 export default function SettingsScreen() {
   const { settings, updateSettings, clearItems, items } = useCart();
+  const {
+    adsRemoved,
+    getRemoveAdsPackage,
+    purchaseRemoveAds,
+    isPurchasing,
+    restorePurchases,
+    isRestoring,
+  } = usePurchases();
   const [zipInput, setZipInput] = useState(settings.zipCode);
   const [budgetInput, setBudgetInput] = useState(
     settings.budgetCeiling ? settings.budgetCeiling.toString() : ''
   );
   const [storeInput, setStoreInput] = useState(settings.storeName);
+
+  const handleRemoveAds = () => {
+    const pkg = getRemoveAdsPackage();
+    if (!pkg) {
+      Alert.alert('Unavailable', 'Remove Ads purchase is not available right now. Please try again later.');
+      return;
+    }
+    purchaseRemoveAds(pkg);
+  };
+
+  const handleRestore = () => {
+    restorePurchases(undefined, {
+      onSuccess: (info) => {
+        const hasIt = info.entitlements.active['remove_ads'] !== undefined;
+        if (hasIt) {
+          Alert.alert('Restored', 'Your Remove Ads purchase has been restored!');
+        } else {
+          Alert.alert('No Purchases Found', 'We could not find any previous purchases to restore.');
+        }
+      },
+      onError: () => {
+        Alert.alert('Error', 'Failed to restore purchases. Please try again.');
+      },
+    });
+  };
 
   const handleSaveZip = () => {
     if (zipInput.length !== 5 || !/^\d{5}$/.test(zipInput)) {
@@ -75,6 +111,11 @@ export default function SettingsScreen() {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <SafeAreaView edges={['top']} style={styles.safeTop}>
+        <View style={styles.screenHeader}>
+          <Text style={styles.screenTitle}>Settings</Text>
+        </View>
+      </SafeAreaView>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
@@ -172,6 +213,71 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {!adsRemoved ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Premium</Text>
+            <TouchableOpacity
+              style={[styles.card, styles.premiumCard]}
+              onPress={handleRemoveAds}
+              disabled={isPurchasing}
+              activeOpacity={0.7}
+              testID="remove-ads"
+            >
+              <View style={styles.cardRow}>
+                <View style={[styles.iconCircle, { backgroundColor: '#FEF3C7' }]}>
+                  <Sparkles size={18} color="#F59E0B" />
+                </View>
+                <View style={styles.cardContent}>
+                  <Text style={styles.cardLabel}>Remove Ads</Text>
+                  <Text style={styles.cardSub}>One-time purchase · $4.99</Text>
+                </View>
+                {isPurchasing ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <ChevronRight size={18} color={Colors.muted} />
+                )}
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.card, { marginTop: 10 }]}
+              onPress={handleRestore}
+              disabled={isRestoring}
+              activeOpacity={0.7}
+              testID="restore-purchases"
+            >
+              <View style={styles.cardRow}>
+                <View style={[styles.iconCircle, { backgroundColor: Colors.iconBgPurple }]}>
+                  <RotateCcw size={18} color={Colors.primary} />
+                </View>
+                <View style={styles.cardContent}>
+                  <Text style={styles.cardLabel}>Restore Purchase</Text>
+                  <Text style={styles.cardSub}>Reinstalled? Recover your purchase</Text>
+                </View>
+                {isRestoring ? (
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                ) : (
+                  <ChevronRight size={18} color={Colors.muted} />
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Premium</Text>
+            <View style={[styles.card, styles.successCard]}>
+              <View style={styles.cardRow}>
+                <View style={[styles.iconCircle, { backgroundColor: '#D1FAE5' }]}>
+                  <ShieldCheck size={18} color="#059669" />
+                </View>
+                <View style={styles.cardContent}>
+                  <Text style={[styles.cardLabel, { color: '#059669' }]}>Ads Removed</Text>
+                  <Text style={styles.cardSub}>Thank you for your support!</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Data</Text>
           <TouchableOpacity
@@ -206,13 +312,27 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  safeTop: {
+    backgroundColor: Colors.background,
+  },
+  screenHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  screenTitle: {
+    fontSize: 28,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    letterSpacing: -0.5,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 8,
     paddingBottom: 40,
   },
   section: {
@@ -236,6 +356,14 @@ const styles = StyleSheet.create({
   },
   dangerCard: {
     borderColor: '#FECACA',
+  },
+  premiumCard: {
+    borderColor: '#FDE68A',
+    backgroundColor: '#FFFBEB',
+  },
+  successCard: {
+    borderColor: '#A7F3D0',
+    backgroundColor: '#ECFDF5',
   },
   cardRow: {
     flexDirection: 'row',
