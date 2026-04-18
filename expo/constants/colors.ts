@@ -1,0 +1,18 @@
+export default {
+  primary: '#3B1F78',
+  primaryLight: '#5A3DA0',
+  background: '#F8F5FF',
+  accent: '#F9A8D4',
+  accentHot: '#E879A0',
+  surface: '#FFFFFF',
+  border: '#DDD0F5',
+  iconBgPurple: '#F0E8FF',
+  iconBgPink: '#FDE8F4',
+  secondaryText: '#8B6BB5',
+  text: '#1A1028',
+  textLight: '#FFFFFF',
+  budgetWarning: '#7C3AED',
+  budgetDanger: '#E879A0',
+  success: '#34D399',
+  muted: '#C4B5D9',
+};
