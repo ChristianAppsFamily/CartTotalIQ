@@ -1,140 +1,167 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Platform } from 'react-native';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Purchases, { CustomerInfo, PurchasesPackage } from 'react-native-purchases';
 import createContextHook from '@nkzw/create-context-hook';
 
+// Dynamically import expo-iap to avoid web issues
+let ExpoIap: typeof import('expo-iap') | null = null;
+
 const ADS_REMOVED_KEY = 'ads_removed';
+const REMOVE_ADS_PRODUCT_ID = 'remove_ads';
 
-function getRCToken() {
-  if (__DEV__ || Platform.OS === 'web') return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
-  return Platform.select({
-    ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY,
-    android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
-    default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
-  });
+interface PurchaseContextType {
+  adsRemoved: boolean;
+  isLoading: boolean;
+  productPrice: string;
+  getRemoveAdsPackage: () => { priceString: string } | null;
+  purchaseRemoveAds: () => void;
+  isPurchasing: boolean;
+  purchaseError: Error | null;
+  restorePurchases: () => void;
+  isRestoring: boolean;
+  restoreError: Error | null;
 }
 
-const rcToken = getRCToken();
-if (rcToken) {
-  Purchases.configure({ apiKey: rcToken });
-  console.log('[RC] RevenueCat configured');
-}
-
-function usePurchaseContext() {
-  const queryClient = useQueryClient();
+function usePurchaseContext(): PurchaseContextType {
   const [adsRemoved, setAdsRemoved] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [productPrice, setProductPrice] = useState('$2.99');
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<Error | null>(null);
+  const [restoreError, setRestoreError] = useState<Error | null>(null);
 
-  const adsRemovedQuery = useQuery({
-    queryKey: ['ads_removed'],
-    queryFn: async () => {
-      const stored = await AsyncStorage.getItem(ADS_REMOVED_KEY);
-      return stored === 'true';
-    },
-  });
-
+  // Initialize IAP and load saved state
   useEffect(() => {
-    if (adsRemovedQuery.data !== undefined) {
-      setAdsRemoved(adsRemovedQuery.data);
-    }
-  }, [adsRemovedQuery.data]);
-
-  const _entitlementQuery = useQuery({
-    queryKey: ['rc_entitlements'],
-    queryFn: async () => {
+    async function init() {
       try {
-        const info: CustomerInfo = await Purchases.getCustomerInfo();
-        const hasRemoveAds = info.entitlements.active['remove_ads'] !== undefined;
-        console.log('[RC] Entitlements checked, remove_ads:', hasRemoveAds);
-        if (hasRemoveAds) {
-          await AsyncStorage.setItem(ADS_REMOVED_KEY, 'true');
+        // Load saved ads removed state
+        const stored = await AsyncStorage.getItem(ADS_REMOVED_KEY);
+        if (stored === 'true') {
           setAdsRemoved(true);
         }
-        return hasRemoveAds;
-      } catch (e) {
-        console.log('[RC] Error checking entitlements:', e);
-        return false;
-      }
-    },
-    enabled: !!rcToken,
-  });
 
-  const offeringsQuery = useQuery({
-    queryKey: ['rc_offerings'],
-    queryFn: async () => {
-      try {
-        const offerings = await Purchases.getOfferings();
-        console.log('[RC] Offerings fetched:', JSON.stringify(offerings.current?.availablePackages?.length));
-        return offerings;
-      } catch (e) {
-        console.log('[RC] Error fetching offerings:', e);
-        return null;
-      }
-    },
-    enabled: !!rcToken,
-  });
+        // Initialize IAP on native platforms
+        if (Platform.OS !== 'web') {
+          ExpoIap = await import('expo-iap');
+          await ExpoIap.initConnection();
+          console.log('[IAP] Connected');
 
-  const purchaseMutation = useMutation({
-    mutationFn: async (pkg: PurchasesPackage) => {
-      console.log('[RC] Purchasing package:', pkg.identifier);
-      const result = await Purchases.purchasePackage(pkg);
-      return result;
-    },
-    onSuccess: async (result) => {
-      const hasRemoveAds = result.customerInfo.entitlements.active['remove_ads'] !== undefined;
+          // Load product info
+          const products = await ExpoIap.getProducts({ skus: [REMOVE_ADS_PRODUCT_ID] });
+          if (products && products.length > 0) {
+            const product = products[0];
+            setProductPrice(product.localizedPrice || product.price || '$2.99');
+          }
+
+          // Check for existing purchases
+          await checkPurchases();
+        }
+      } catch (error) {
+        console.log('[IAP] Init error:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    init();
+
+    return () => {
+      if (ExpoIap) {
+        ExpoIap.endConnection();
+      }
+    };
+  }, []);
+
+  // Check for existing purchases
+  const checkPurchases = async (): Promise<void> => {
+    if (Platform.OS === 'web' || !ExpoIap) return;
+
+    try {
+      const purchases = await ExpoIap.getAvailablePurchases();
+      const hasRemoveAds = purchases.some(
+        (purchase) => purchase.productId === REMOVE_ADS_PRODUCT_ID
+      );
+
       if (hasRemoveAds) {
         await AsyncStorage.setItem(ADS_REMOVED_KEY, 'true');
         setAdsRemoved(true);
-        void queryClient.invalidateQueries({ queryKey: ['ads_removed'] });
-        void queryClient.invalidateQueries({ queryKey: ['rc_entitlements'] });
+        console.log('[IAP] Found existing purchase');
       }
-      console.log('[RC] Purchase successful, remove_ads:', hasRemoveAds);
-    },
-    onError: (error: Error) => {
-      console.log('[RC] Purchase error:', error.message);
-    },
-  });
+    } catch (error) {
+      console.log('[IAP] Check purchases error:', error);
+    }
+  };
 
-  const restoreMutation = useMutation({
-    mutationFn: async () => {
-      console.log('[RC] Restoring purchases...');
-      const info = await Purchases.restorePurchases();
-      return info;
-    },
-    onSuccess: async (info) => {
-      const hasRemoveAds = info.entitlements.active['remove_ads'] !== undefined;
-      if (hasRemoveAds) {
-        await AsyncStorage.setItem(ADS_REMOVED_KEY, 'true');
-        setAdsRemoved(true);
-        void queryClient.invalidateQueries({ queryKey: ['ads_removed'] });
-        void queryClient.invalidateQueries({ queryKey: ['rc_entitlements'] });
+  // Get Remove Ads package info
+  const getRemoveAdsPackage = useCallback(() => {
+    return {
+      priceString: productPrice,
+    };
+  }, [productPrice]);
+
+  // Purchase Remove Ads
+  const purchaseRemoveAds = useCallback(async () => {
+    if (Platform.OS === 'web' || !ExpoIap) {
+      setPurchaseError(new Error('In-app purchases not available'));
+      return;
+    }
+
+    setIsPurchasing(true);
+    setPurchaseError(null);
+
+    try {
+      const purchaseResult = await ExpoIap.requestPurchase({ sku: REMOVE_ADS_PRODUCT_ID });
+
+      if (purchaseResult && purchaseResult.length > 0) {
+        const purchase = purchaseResult[0];
+        if (purchase.productId === REMOVE_ADS_PRODUCT_ID) {
+          await AsyncStorage.setItem(ADS_REMOVED_KEY, 'true');
+          setAdsRemoved(true);
+          await ExpoIap.finishTransaction({ purchase, isConsumable: false });
+          console.log('[IAP] Purchase successful');
+        }
       }
-      console.log('[RC] Restore complete, remove_ads:', hasRemoveAds);
-    },
-    onError: (error: Error) => {
-      console.log('[RC] Restore error:', error.message);
-    },
-  });
+    } catch (error) {
+      console.log('[IAP] Purchase error:', error);
+      setPurchaseError(error instanceof Error ? error : new Error('Purchase failed'));
+    } finally {
+      setIsPurchasing(false);
+    }
+  }, []);
 
-  const getRemoveAdsPackage = useCallback((): PurchasesPackage | null => {
-    const offerings = offeringsQuery.data;
-    if (!offerings?.current?.availablePackages) return null;
-    return offerings.current.availablePackages[0] ?? null;
-  }, [offeringsQuery.data]);
+  // Restore purchases
+  const restorePurchases = useCallback(async () => {
+    if (Platform.OS === 'web' || !ExpoIap) {
+      setRestoreError(new Error('In-app purchases not available'));
+      return;
+    }
+
+    setIsRestoring(true);
+    setRestoreError(null);
+
+    try {
+      await checkPurchases();
+      console.log('[IAP] Restore complete');
+    } catch (error) {
+      console.log('[IAP] Restore error:', error);
+      setRestoreError(error instanceof Error ? error : new Error('Restore failed'));
+    } finally {
+      setIsRestoring(false);
+    }
+  }, []);
 
   return {
     adsRemoved,
-    isLoading: adsRemovedQuery.isLoading,
-    offerings: offeringsQuery.data,
-    offeringsLoading: offeringsQuery.isLoading,
+    isLoading,
+    productPrice,
     getRemoveAdsPackage,
-    purchaseRemoveAds: purchaseMutation.mutate,
-    isPurchasing: purchaseMutation.isPending,
-    purchaseError: purchaseMutation.error,
-    restorePurchases: restoreMutation.mutate,
-    isRestoring: restoreMutation.isPending,
-    restoreError: restoreMutation.error,
+    purchaseRemoveAds,
+    isPurchasing,
+    purchaseError,
+    restorePurchases,
+    isRestoring,
+    restoreError,
   };
 }
 
