@@ -7,7 +7,7 @@ import createContextHook from '@nkzw/create-context-hook';
 let ExpoIap: typeof import('expo-iap') | null = null;
 
 const ADS_REMOVED_KEY = 'ads_removed';
-const REMOVE_ADS_PRODUCT_ID = 'remove_ads';
+const REMOVE_ADS_PRODUCT_ID = 'remove_ads_399';
 
 interface PurchaseContextType {
   adsRemoved: boolean;
@@ -25,7 +25,7 @@ interface PurchaseContextType {
 function usePurchaseContext(): PurchaseContextType {
   const [adsRemoved, setAdsRemoved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [productPrice, setProductPrice] = useState('$2.99');
+  const [productPrice, setProductPrice] = useState('$3.99');
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [purchaseError, setPurchaseError] = useState<Error | null>(null);
@@ -51,7 +51,7 @@ function usePurchaseContext(): PurchaseContextType {
           const products = await ExpoIap.getProducts({ skus: [REMOVE_ADS_PRODUCT_ID] });
           if (products && products.length > 0) {
             const product = products[0];
-            setProductPrice(product.localizedPrice || product.price || '$2.99');
+            setProductPrice(product.localizedPrice || product.price || '$3.99');
           }
 
           // Check for existing purchases
