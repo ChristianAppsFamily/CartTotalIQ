@@ -103,6 +103,17 @@ function useCartContext() {
     }
   }, []);
 
+  const editItem = useCallback((id: string, updates: Partial<CartItem>) => {
+    setItems(prev => {
+      const updated = prev.map(i => i.id === id ? { ...i, ...updates } : i);
+      syncItemsRef.current?.(updated);
+      return updated;
+    });
+    if (Platform.OS !== 'web') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, []);
+
   const clearItems = useCallback(() => {
     setItems([]);
     syncItemsRef.current?.([]);
@@ -148,9 +159,10 @@ function useCartContext() {
     isLoading,
     addItem,
     removeItem,
+    editItem,
     clearItems,
     updateSettings,
-  }), [items, settings, subtotal, taxAmount, total, budgetProgress, isLoading, addItem, removeItem, clearItems, updateSettings]);
+  }), [items, settings, subtotal, taxAmount, total, budgetProgress, isLoading, addItem, removeItem, editItem, clearItems, updateSettings]);
 }
 
 export const [CartProvider, useCart] = createContextHook(useCartContext);

@@ -29,6 +29,7 @@ export default function CartScreen() {
     budgetProgress,
     isLoading,
     removeItem,
+    editItem,
   } = useCart();
 
   const fabScale = useRef(new Animated.Value(1)).current;
@@ -106,6 +107,7 @@ export default function CartScreen() {
             index={index}
             taxRate={settings.taxRate}
             onRemove={removeItem}
+            onEdit={editItem}
           />
         )}
         ListEmptyComponent={
