@@ -14,10 +14,10 @@ interface PurchaseContextType {
   isLoading: boolean;
   productPrice: string;
   getRemoveAdsPackage: () => { priceString: string } | null;
-  purchaseRemoveAds: () => void;
+  purchaseRemoveAds: () => Promise<void>;
   isPurchasing: boolean;
   purchaseError: Error | null;
-  restorePurchases: () => void;
+  restorePurchases: () => Promise<void>;
   isRestoring: boolean;
   restoreError: Error | null;
 }
@@ -48,10 +48,19 @@ function usePurchaseContext(): PurchaseContextType {
           console.log('[IAP] Connected');
 
           // Load product info
-          const products = await ExpoIap.getProducts({ skus: [REMOVE_ADS_PRODUCT_ID] });
+          const products = await ExpoIap.fetchProducts({
+            type: 'in-app',
+            skus: [REMOVE_ADS_PRODUCT_ID],
+          });
           if (products && products.length > 0) {
             const product = products[0];
-            setProductPrice(product.localizedPrice || product.price || '$3.99');
+            // ProductAndroid has displayPrice, ProductIOS has localizedPrice
+            const productAny = product as unknown as Record<string, unknown>;
+            const price = productAny.displayPrice 
+              || productAny.localizedPrice 
+              || productAny.price 
+              || '$3.99';
+            setProductPrice(String(price));
           }
 
           // Check for existing purchases
@@ -111,15 +120,24 @@ function usePurchaseContext(): PurchaseContextType {
     setPurchaseError(null);
 
     try {
-      const purchaseResult = await ExpoIap.requestPurchase({ sku: REMOVE_ADS_PRODUCT_ID });
+      const purchaseResult = await ExpoIap.requestPurchase({
+        type: 'in-app',
+        request: {
+          apple: { sku: REMOVE_ADS_PRODUCT_ID },
+          google: { skus: [REMOVE_ADS_PRODUCT_ID] },
+        },
+      });
 
-      if (purchaseResult && purchaseResult.length > 0) {
-        const purchase = purchaseResult[0];
-        if (purchase.productId === REMOVE_ADS_PRODUCT_ID) {
-          await AsyncStorage.setItem(ADS_REMOVED_KEY, 'true');
-          setAdsRemoved(true);
-          await ExpoIap.finishTransaction({ purchase, isConsumable: false });
-          console.log('[IAP] Purchase successful');
+      if (purchaseResult) {
+        const purchases = Array.isArray(purchaseResult) ? purchaseResult : [purchaseResult];
+        if (purchases.length > 0) {
+          const purchase = purchases[0];
+          if (purchase.productId === REMOVE_ADS_PRODUCT_ID) {
+            await AsyncStorage.setItem(ADS_REMOVED_KEY, 'true');
+            setAdsRemoved(true);
+            await ExpoIap.finishTransaction({ purchase, isConsumable: false });
+            console.log('[IAP] Purchase successful');
+          }
         }
       }
     } catch (error) {

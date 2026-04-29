@@ -10,9 +10,23 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Modal,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MapPin, DollarSign, Trash2, ChevronRight, Store, ShieldCheck, RotateCcw, Sparkles } from 'lucide-react-native';
+import {
+  MapPin,
+  DollarSign,
+  Trash2,
+  ChevronRight,
+  Store,
+  ShieldCheck,
+  RotateCcw,
+  Sparkles,
+  Pencil,
+  Mail,
+  X,
+} from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useCart } from '@/providers/CartProvider';
 import { usePurchases } from '@/providers/PurchaseProvider';
@@ -28,64 +42,64 @@ export default function SettingsScreen() {
     restorePurchases,
     isRestoring,
   } = usePurchases();
-  const [zipInput, setZipInput] = useState(settings.zipCode);
-  const [budgetInput, setBudgetInput] = useState(
-    settings.budgetCeiling ? settings.budgetCeiling.toString() : ''
-  );
-  const [storeInput, setStoreInput] = useState(settings.storeName);
+
+  // Edit modal states
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editField, setEditField] = useState<'zip' | 'store' | 'budget' | null>(null);
+  const [editValue, setEditValue] = useState('');
 
   const handleRemoveAds = () => {
-    const pkg = getRemoveAdsPackage();
-    if (!pkg) {
-      Alert.alert('Unavailable', 'Remove Ads purchase is not available right now. Please try again later.');
-      return;
-    }
-    purchaseRemoveAds(pkg);
+    purchaseRemoveAds();
   };
 
-  const handleRestore = () => {
-    restorePurchases(undefined, {
-      onSuccess: (info) => {
-        const hasIt = info.entitlements.active['remove_ads'] !== undefined;
-        if (hasIt) {
-          Alert.alert('Restored', 'Your Remove Ads purchase has been restored!');
-        } else {
-          Alert.alert('No Purchases Found', 'We could not find any previous purchases to restore.');
+  const handleRestore = async () => {
+    try {
+      await restorePurchases();
+      if (adsRemoved) {
+        Alert.alert('Restored', 'Your Remove Ads purchase has been restored!');
+      } else {
+        Alert.alert('No Purchases Found', 'We could not find any previous purchases to restore.');
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to restore purchases. Please try again.');
+    }
+  };
+
+  const openEditModal = (field: 'zip' | 'store' | 'budget') => {
+    setEditField(field);
+    if (field === 'zip') setEditValue(settings.zipCode);
+    else if (field === 'store') setEditValue(settings.storeName);
+    else if (field === 'budget') setEditValue(settings.budgetCeiling ? settings.budgetCeiling.toString() : '');
+    setEditModalVisible(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (editField === 'zip') {
+      if (editValue.length !== 5 || !/^\d{5}$/.test(editValue)) {
+        Alert.alert('Invalid ZIP', 'Please enter a valid 5-digit ZIP code.');
+        return;
+      }
+      updateSettings({ zipCode: editValue });
+      const state = getStateForZip(editValue);
+      Alert.alert('Updated', `Tax rate updated for ${state} (${editValue})`);
+    } else if (editField === 'store') {
+      updateSettings({ storeName: editValue.trim() });
+      Alert.alert('Updated', 'Store name saved.');
+    } else if (editField === 'budget') {
+      if (editValue === '' || editValue === '0') {
+        updateSettings({ budgetCeiling: null });
+        Alert.alert('Budget Removed', 'No budget ceiling is set.');
+      } else {
+        const val = parseFloat(editValue);
+        if (isNaN(val) || val < 0) {
+          Alert.alert('Invalid Budget', 'Please enter a valid dollar amount.');
+          return;
         }
-      },
-      onError: () => {
-        Alert.alert('Error', 'Failed to restore purchases. Please try again.');
-      },
-    });
-  };
-
-  const handleSaveZip = () => {
-    if (zipInput.length !== 5 || !/^\d{5}$/.test(zipInput)) {
-      Alert.alert('Invalid ZIP', 'Please enter a valid 5-digit ZIP code.');
-      return;
+        updateSettings({ budgetCeiling: val });
+        Alert.alert('Budget Set', `Your budget ceiling is now $${val.toFixed(2)}`);
+      }
     }
-    updateSettings({ zipCode: zipInput });
-    const state = getStateForZip(zipInput);
-    Alert.alert('Updated', `Tax rate updated for ${state} (${zipInput})`);
-  };
-
-  const handleSaveBudget = () => {
-    const val = parseFloat(budgetInput);
-    if (budgetInput === '' || budgetInput === '0') {
-      updateSettings({ budgetCeiling: null });
-      Alert.alert('Budget Removed', 'No budget ceiling is set.');
-      return;
-    }
-    if (isNaN(val) || val < 0) {
-      Alert.alert('Invalid Budget', 'Please enter a valid dollar amount.');
-      return;
-    }
-    updateSettings({ budgetCeiling: val });
-    Alert.alert('Budget Set', `Your budget ceiling is now $${val.toFixed(2)}`);
-  };
-
-  const handleSaveStore = () => {
-    updateSettings({ storeName: storeInput.trim() });
+    setEditModalVisible(false);
   };
 
   const handleClearItems = () => {
@@ -106,6 +120,50 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleContactSupport = async () => {
+    const email = 'ChristianAppEmpire@gmail.com';
+    const subject = 'CartTotalIQ Support';
+    const body = 'Hello CartTotalIQ Team,\n\nI need help with...\n\n';
+    const url = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Email', `Please contact us at ${email}`);
+      }
+    } catch {
+      Alert.alert('Email', `Please contact us at ${email}`);
+    }
+  };
+
+  const getEditModalTitle = () => {
+    switch (editField) {
+      case 'zip': return 'Edit ZIP Code';
+      case 'store': return 'Edit Store Name';
+      case 'budget': return 'Edit Budget Ceiling';
+      default: return 'Edit';
+    }
+  };
+
+  const getEditModalPlaceholder = () => {
+    switch (editField) {
+      case 'zip': return 'Enter ZIP code';
+      case 'store': return 'e.g. Target, Walmart';
+      case 'budget': return '0.00 (no limit)';
+      default: return '';
+    }
+  };
+
+  const getEditKeyboardType = () => {
+    switch (editField) {
+      case 'zip': return 'number-pad';
+      case 'budget': return 'decimal-pad';
+      default: return 'default';
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.flex}
@@ -121,6 +179,7 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Location & Tax */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Location & Tax</Text>
           <View style={styles.card}>
@@ -130,19 +189,14 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.cardContent}>
                 <Text style={styles.cardLabel}>ZIP Code</Text>
-                <TextInput
-                  style={styles.input}
-                  value={zipInput}
-                  onChangeText={setZipInput}
-                  placeholder="Enter ZIP code"
-                  placeholderTextColor={Colors.muted}
-                  keyboardType="number-pad"
-                  maxLength={5}
-                  testID="zip-input"
-                />
+                <Text style={styles.cardValue}>{settings.zipCode || 'Not set'}</Text>
               </View>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveZip} testID="save-zip">
-                <Text style={styles.saveBtnText}>Save</Text>
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => openEditModal('zip')}
+                testID="edit-zip"
+              >
+                <Pencil size={16} color={Colors.primary} />
               </TouchableOpacity>
             </View>
             <View style={styles.taxInfo}>
@@ -154,6 +208,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Store Name */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Store Name</Text>
           <View style={styles.card}>
@@ -163,23 +218,20 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.cardContent}>
                 <Text style={styles.cardLabel}>Current Store</Text>
-                <TextInput
-                  style={styles.input}
-                  value={storeInput}
-                  onChangeText={setStoreInput}
-                  onBlur={handleSaveStore}
-                  placeholder="e.g. Target, Walmart"
-                  placeholderTextColor={Colors.muted}
-                  testID="store-input"
-                />
+                <Text style={styles.cardValue}>{settings.storeName || 'Not set'}</Text>
               </View>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveStore} testID="save-store">
-                <Text style={styles.saveBtnText}>Save</Text>
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => openEditModal('store')}
+                testID="edit-store"
+              >
+                <Pencil size={16} color={Colors.primary} />
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
+        {/* Budget Ceiling */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Budget Ceiling</Text>
           <View style={styles.card}>
@@ -189,30 +241,22 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.cardContent}>
                 <Text style={styles.cardLabel}>Maximum Spend</Text>
-                <TextInput
-                  style={styles.input}
-                  value={budgetInput}
-                  onChangeText={setBudgetInput}
-                  placeholder="0.00 (no limit)"
-                  placeholderTextColor={Colors.muted}
-                  keyboardType="decimal-pad"
-                  testID="budget-input"
-                />
-              </View>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveBudget} testID="save-budget">
-                <Text style={styles.saveBtnText}>Save</Text>
-              </TouchableOpacity>
-            </View>
-            {settings.budgetCeiling ? (
-              <View style={styles.taxInfo}>
-                <Text style={styles.taxInfoText}>
-                  Budget: ${settings.budgetCeiling.toFixed(2)}
+                <Text style={styles.cardValue}>
+                  {settings.budgetCeiling ? `$${settings.budgetCeiling.toFixed(2)}` : 'No limit'}
                 </Text>
               </View>
-            ) : null}
+              <TouchableOpacity
+                style={styles.editBtn}
+                onPress={() => openEditModal('budget')}
+                testID="edit-budget"
+              >
+                <Pencil size={16} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
+        {/* Premium */}
         {!adsRemoved ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Premium</Text>
@@ -278,6 +322,7 @@ export default function SettingsScreen() {
           </View>
         )}
 
+        {/* Data */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Data</Text>
           <TouchableOpacity
@@ -298,11 +343,76 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Contact Support */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Support</Text>
+          <TouchableOpacity
+            style={styles.card}
+            onPress={handleContactSupport}
+            activeOpacity={0.7}
+            testID="contact-support"
+          >
+            <View style={styles.cardRow}>
+              <View style={[styles.iconCircle, { backgroundColor: '#DBEAFE' }]}>
+                <Mail size={18} color="#3B82F6" />
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardLabel}>Contact Support</Text>
+                <Text style={styles.cardSub}>ChristianAppEmpire@gmail.com</Text>
+              </View>
+              <ChevronRight size={18} color={Colors.muted} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* App Info */}
         <View style={styles.footer}>
-          <Text style={styles.footerText}>CartTotalIQ v1.0</Text>
-          <Text style={styles.footerSub}>Know before you go.</Text>
+          <Text style={styles.footerAppName}>CartTotalIQ</Text>
+          <Text style={styles.footerCompany}>Developed By</Text>
+          <Text style={styles.footerCompanyName}>Christian App Empire LLC</Text>
+          <Text style={styles.footerCopyright}>Copyright © 2026. All Rights Reserved.</Text>
         </View>
       </ScrollView>
+
+      {/* Edit Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={editModalVisible}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{getEditModalTitle()}</Text>
+              <TouchableOpacity
+                onPress={() => setEditModalVisible(false)}
+                style={styles.modalCloseBtn}
+              >
+                <X size={20} color={Colors.muted} />
+              </TouchableOpacity>
+            </View>
+
+            <TextInput
+              style={styles.modalInput}
+              value={editValue}
+              onChangeText={setEditValue}
+              placeholder={getEditModalPlaceholder()}
+              placeholderTextColor={Colors.muted}
+              keyboardType={getEditKeyboardType()}
+              maxLength={editField === 'zip' ? 5 : undefined}
+              autoFocus
+            />
+
+            <TouchableOpacity
+              style={styles.modalSaveButton}
+              onPress={handleSaveEdit}
+            >
+              <Text style={styles.modalSaveText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -387,26 +497,22 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginBottom: 4,
   },
+  cardValue: {
+    fontSize: 13,
+    color: Colors.secondaryText,
+    fontWeight: '500' as const,
+  },
   cardSub: {
     fontSize: 12,
     color: Colors.secondaryText,
   },
-  input: {
-    fontSize: 15,
-    color: Colors.text,
-    padding: 0,
-    fontWeight: '500' as const,
-  },
-  saveBtn: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  editBtn: {
+    width: 36,
+    height: 36,
     borderRadius: 10,
-  },
-  saveBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600' as const,
+    backgroundColor: Colors.iconBgPurple,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   taxInfo: {
     marginTop: 12,
@@ -423,16 +529,86 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
     paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
-  footerText: {
+  footerAppName: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  footerCompany: {
     fontSize: 13,
-    color: Colors.muted,
-    fontWeight: '600' as const,
+    color: Colors.secondaryText,
+    marginBottom: 2,
   },
-  footerSub: {
+  footerCompanyName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  footerCopyright: {
     fontSize: 12,
     color: Colors.muted,
-    marginTop: 2,
-    fontStyle: 'italic' as const,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalInput: {
+    backgroundColor: Colors.background,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: Colors.text,
+    fontWeight: '500' as const,
+    marginBottom: 20,
+  },
+  modalSaveButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalSaveText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700' as const,
   },
 });

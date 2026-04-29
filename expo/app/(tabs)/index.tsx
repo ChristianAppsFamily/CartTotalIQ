@@ -21,9 +21,9 @@ import CartItemCard from '@/components/CartItemCard';
 import { BannerAd, BannerAdSize } from '@/utils/ads';
 
 const BANNER_AD_UNIT_ID = Platform.select({
-  ios: 'ca-app-pub-3002325591150738/8472312000',
-  android: 'ca-app-pub-3002325591150738/8472312000',
-  default: 'ca-app-pub-3002325591150738/8472312000',
+  ios: 'ca-app-pub-3002325591150738/1087306830',
+  android: 'ca-app-pub-3002325591150738/1087306830',
+  default: 'ca-app-pub-3002325591150738/1087306830',
 });
 
 export default function CartScreen() {
@@ -37,6 +37,7 @@ export default function CartScreen() {
     budgetProgress,
     isLoading,
     removeItem,
+    editItem,
   } = useCart();
   const { adsRemoved, getRemoveAdsPackage, purchaseRemoveAds, isPurchasing, restorePurchases, isRestoring } = usePurchases();
 
@@ -67,10 +68,7 @@ export default function CartScreen() {
   };
 
   const handleRemoveAdsPress = () => {
-    const pkg = getRemoveAdsPackage();
-    if (pkg) {
-      purchaseRemoveAds(pkg);
-    }
+    purchaseRemoveAds();
   };
 
   const handleRestorePress = () => {
@@ -131,7 +129,7 @@ export default function CartScreen() {
                     disabled={isPurchasing}
                   >
                     <Text style={styles.removeAdsButtonText}>
-                      {isPurchasing ? '...' : removeAdsPackage.product.priceString}
+                      {isPurchasing ? '...' : removeAdsPackage.priceString}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -161,6 +159,7 @@ export default function CartScreen() {
             index={index}
             taxRate={settings.taxRate}
             onRemove={removeItem}
+            onEdit={editItem}
           />
         )}
         ListEmptyComponent={

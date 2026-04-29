@@ -10,15 +10,15 @@ import { Platform } from 'react-native';
 
 // Ad Unit IDs
 const BANNER_AD_UNIT_ID = Platform.select({
-  ios: 'ca-app-pub-3002325591150738/8472312000',
-  android: 'ca-app-pub-3002325591150738/8472312000',
-  default: 'ca-app-pub-3002325591150738/8472312000',
+  ios: 'ca-app-pub-3002325591150738/1087306830',
+  android: 'ca-app-pub-3002325591150738/1087306830',
+  default: 'ca-app-pub-3002325591150738/1087306830',
 });
 
 const INTERSTITIAL_AD_UNIT_ID = Platform.select({
-  ios: 'ca-app-pub-3002325591150738/2937287588',
-  android: 'ca-app-pub-3002325591150738/2937287588',
-  default: 'ca-app-pub-3002325591150738/2937287588',
+  ios: 'ca-app-pub-3002325591150738/7756567672',
+  android: 'ca-app-pub-3002325591150738/7756567672',
+  default: 'ca-app-pub-3002325591150738/7756567672',
 });
 
 // Interaction counter for interstitial
