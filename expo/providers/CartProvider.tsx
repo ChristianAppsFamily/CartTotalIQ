@@ -31,6 +31,11 @@ function useCartContext() {
       const stored = await AsyncStorage.getItem(ITEMS_KEY);
       return stored ? (JSON.parse(stored) as CartItem[]) : [];
     },
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const settingsQuery = useQuery({
@@ -39,6 +44,11 @@ function useCartContext() {
       const stored = await AsyncStorage.getItem(SETTINGS_KEY);
       return stored ? { ...DEFAULT_SETTINGS, ...(JSON.parse(stored) as AppSettings) } : DEFAULT_SETTINGS;
     },
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   useEffect(() => {
@@ -58,8 +68,8 @@ function useCartContext() {
       await AsyncStorage.setItem(ITEMS_KEY, JSON.stringify(newItems));
       return newItems;
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['cart_items'] });
+    onSuccess: (newItems) => {
+      queryClient.setQueryData(['cart_items'], newItems);
     },
   });
 
@@ -68,8 +78,8 @@ function useCartContext() {
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings));
       return newSettings;
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['app_settings'] });
+    onSuccess: (newSettings) => {
+      queryClient.setQueryData(['app_settings'], newSettings);
     },
   });
 

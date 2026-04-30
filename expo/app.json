@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.g9wbdtnl64envtjt05itd"
+      "bundleIdentifier": "app.rork.g9wbdtnl64envtjt05itd",
+      "infoPlist": {
+        "NSUserTrackingUsageDescription": "We use your data to deliver more relevant ads and support app improvements.",
+        "GADApplicationIdentifier": "ca-app-pub-3940256099942544~1458002511"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,6 +36,14 @@
         "expo-router",
         {
           "origin": "https://rork.com/"
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "delayAppMeasurementInit": true
         }
       ],
       "expo-font",

@@ -14,9 +14,11 @@ import { Camera, Plus, ShoppingBag } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useCart } from '@/providers/CartProvider';
+import { useAds } from '@/providers/AdsProvider';
 import TotalHeader from '@/components/TotalHeader';
 import BudgetBar from '@/components/BudgetBar';
 import CartItemCard from '@/components/CartItemCard';
+import AdBanner from '@/components/AdBanner';
 
 export default function CartScreen() {
   const router = useRouter();
@@ -31,8 +33,10 @@ export default function CartScreen() {
     removeItem,
     editItem,
   } = useCart();
+  const { showInterstitialIfLoaded, adsEnabled } = useAds();
 
   const fabScale = useRef(new Animated.Value(1)).current;
+  const interstitialTapCounter = useRef(0);
 
   useEffect(() => {
     if (!isLoading && !settings.hasCompletedOnboarding) {
@@ -47,6 +51,12 @@ export default function CartScreen() {
     ]).start();
     if (Platform.OS !== 'web') {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    if (adsEnabled) {
+      interstitialTapCounter.current += 1;
+      if (interstitialTapCounter.current % 3 === 0) {
+        void showInterstitialIfLoaded();
+      }
     }
     router.push('/scan');
   };
@@ -146,6 +156,7 @@ export default function CartScreen() {
           </TouchableOpacity>
         </Animated.View>
       </View>
+      <AdBanner />
     </View>
   );
 }

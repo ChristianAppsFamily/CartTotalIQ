@@ -32,6 +32,11 @@ function usePurchaseContext() {
       const stored = await AsyncStorage.getItem(ADS_REMOVED_KEY);
       return stored === 'true';
     },
+    staleTime: Infinity,
+    gcTime: Infinity,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   useEffect(() => {
@@ -58,6 +63,9 @@ function usePurchaseContext() {
       }
     },
     enabled: !!rcToken,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const offeringsQuery = useQuery({
@@ -65,7 +73,7 @@ function usePurchaseContext() {
     queryFn: async () => {
       try {
         const offerings = await Purchases.getOfferings();
-        console.log('[RC] Offerings fetched:', JSON.stringify(offerings.current?.availablePackages?.length));
+        console.log('[RC] Offerings fetched:', offerings.current?.availablePackages?.length ?? 0);
         return offerings;
       } catch (e) {
         console.log('[RC] Error fetching offerings:', e);
@@ -73,6 +81,9 @@ function usePurchaseContext() {
       }
     },
     enabled: !!rcToken,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   const purchaseMutation = useMutation({

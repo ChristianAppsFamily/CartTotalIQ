@@ -25,12 +25,16 @@ import {
   Sparkles,
   Pencil,
   Mail,
+  FileText,
   X,
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useCart } from '@/providers/CartProvider';
 import { usePurchases } from '@/providers/PurchaseProvider';
 import { getStateForZip } from '@/constants/taxRates';
+
+// Replace this URL with your final GitHub Pages URL if owner/repo/path changes.
+const PRIVACY_POLICY_URL = 'https://christianappsfamily.github.io/rork-carttotaliq/privacy-policy.html';
 
 export default function SettingsScreen() {
   const { settings, updateSettings, clearItems, items } = useCart();
@@ -143,6 +147,19 @@ export default function SettingsScreen() {
       }
     } catch {
       Alert.alert('Email', `Please contact us at ${email}`);
+    }
+  };
+
+  const handleOpenPrivacyPolicy = async () => {
+    try {
+      const canOpen = await Linking.canOpenURL(PRIVACY_POLICY_URL);
+      if (canOpen) {
+        await Linking.openURL(PRIVACY_POLICY_URL);
+      } else {
+        Alert.alert('Privacy Policy', `Unable to open privacy policy. Visit: ${PRIVACY_POLICY_URL}`);
+      }
+    } catch {
+      Alert.alert('Privacy Policy', `Unable to open privacy policy. Visit: ${PRIVACY_POLICY_URL}`);
     }
   };
 
@@ -367,6 +384,23 @@ export default function SettingsScreen() {
               <View style={styles.cardContent}>
                 <Text style={styles.cardLabel}>Contact Support</Text>
                 <Text style={styles.cardSub}>ChristianAppEmpire@gmail.com</Text>
+              </View>
+              <ChevronRight size={18} color={Colors.muted} />
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.card, { marginTop: 10 }]}
+            onPress={handleOpenPrivacyPolicy}
+            activeOpacity={0.7}
+            testID="privacy-policy"
+          >
+            <View style={styles.cardRow}>
+              <View style={[styles.iconCircle, { backgroundColor: '#E0E7FF' }]}>
+                <FileText size={18} color="#4F46E5" />
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardLabel}>Privacy Policy</Text>
+                <Text style={styles.cardSub}>View how CartTotalIQ handles data</Text>
               </View>
               <ChevronRight size={18} color={Colors.muted} />
             </View>

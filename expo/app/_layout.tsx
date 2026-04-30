@@ -5,6 +5,7 @@ import React, { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { CartProvider } from '@/providers/CartProvider';
 import { PurchaseProvider } from '@/providers/PurchaseProvider';
+import { AdsProvider } from '@/providers/AdsProvider';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -31,7 +32,9 @@ export default function RootLayout() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <CartProvider>
           <PurchaseProvider>
-            <RootLayoutNav />
+            <AdsProvider>
+              <RootLayoutNav />
+            </AdsProvider>
           </PurchaseProvider>
         </CartProvider>
       </GestureHandlerRootView>

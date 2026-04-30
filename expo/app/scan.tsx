@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { X, Camera, ImageIcon, Tag, Package, Check } from 'lucide-react-native';
 import { useMutation } from '@tanstack/react-query';
 import { generateObject } from '@rork-ai/toolkit-sdk';
@@ -28,6 +29,24 @@ const AIResultSchema = z.object({
   category: z.string(),
   emoji: z.string(),
 });
+
+const prepareImageForAi = async (uri: string): Promise<string> => {
+  const manipulatedImage = await manipulateAsync(
+    uri,
+    [{ resize: { width: 1280 } }],
+    {
+      compress: 0.6,
+      format: SaveFormat.JPEG,
+      base64: true,
+    }
+  );
+
+  if (!manipulatedImage.base64) {
+    throw new Error('Image manipulation did not return base64 data');
+  }
+
+  return `data:image/jpeg;base64,${manipulatedImage.base64}`;
+};
 
 export default function ScanScreen() {
   const router = useRouter();
@@ -95,7 +114,6 @@ export default function ScanScreen() {
           return null;
         }
         pickerResult = await ImagePicker.launchCameraAsync({
-          base64: true,
           quality: 0.7,
         });
       } else {
@@ -105,15 +123,13 @@ export default function ScanScreen() {
           return null;
         }
         pickerResult = await ImagePicker.launchImageLibraryAsync({
-          base64: true,
           quality: 0.7,
         });
       }
 
       if (!pickerResult.canceled && pickerResult.assets[0]) {
         const asset = pickerResult.assets[0];
-        const base64 = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-        return base64;
+        return await prepareImageForAi(asset.uri);
       }
       return null;
     } catch (err) {
