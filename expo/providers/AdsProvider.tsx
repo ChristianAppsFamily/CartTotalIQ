@@ -15,8 +15,8 @@ import { usePurchases } from '@/providers/PurchaseProvider';
 
 const IOS_BANNER_AD_UNIT_ID = 'ca-app-pub-3002325591150738/1087306830';
 const IOS_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3002325591150738/7756567672';
-const ANDROID_BANNER_AD_UNIT_ID = process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID ?? '';
-const ANDROID_INTERSTITIAL_AD_UNIT_ID = process.env.EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL_ID ?? '';
+const ANDROID_BANNER_AD_UNIT_ID = 'ca-app-pub-3002325591150738/2783743913';
+const ANDROID_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3002325591150738/4580964756';
 
 function useAdsContext() {
   const { adsRemoved } = usePurchases();
