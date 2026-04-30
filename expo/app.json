@@ -46,6 +46,7 @@
           "delayAppMeasurementInit": true
         }
       ],
+      "expo-iap",
       "expo-font",
       "expo-web-browser"
     ],

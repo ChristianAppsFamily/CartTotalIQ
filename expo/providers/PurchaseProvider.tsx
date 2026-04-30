@@ -11,7 +11,8 @@ import {
   purchaseErrorListener,
   purchaseUpdatedListener,
   requestPurchase,
-} from 'react-native-iap';
+  restorePurchases,
+} from 'expo-iap';
 import createContextHook from '@nkzw/create-context-hook';
 
 const ADS_REMOVED_KEY = 'ads_removed';
@@ -104,6 +105,7 @@ function usePurchaseContext() {
   const restoreMutation = useMutation({
     mutationFn: async () => {
       if (Platform.OS === 'web') return false;
+      await restorePurchases();
       const purchases = await getAvailablePurchases();
       const owned = purchases.some(p => p.productId === REMOVE_ADS_PRODUCT_ID);
       if (owned) {
