@@ -15,6 +15,8 @@ import { usePurchases } from '@/providers/PurchaseProvider';
 
 const IOS_BANNER_AD_UNIT_ID = 'ca-app-pub-3002325591150738/1087306830';
 const IOS_INTERSTITIAL_AD_UNIT_ID = 'ca-app-pub-3002325591150738/7756567672';
+const ANDROID_BANNER_AD_UNIT_ID = process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID ?? '';
+const ANDROID_INTERSTITIAL_AD_UNIT_ID = process.env.EXPO_PUBLIC_ADMOB_ANDROID_INTERSTITIAL_ID ?? '';
 
 function useAdsContext() {
   const { adsRemoved } = usePurchases();
@@ -25,11 +27,11 @@ function useAdsContext() {
 
   const isSupportedPlatform = Platform.OS === 'ios' || Platform.OS === 'android';
   const bannerAdUnitId = useMemo(
-    () => (Platform.OS === 'ios' ? IOS_BANNER_AD_UNIT_ID : IOS_BANNER_AD_UNIT_ID),
+    () => (Platform.OS === 'ios' ? IOS_BANNER_AD_UNIT_ID : ANDROID_BANNER_AD_UNIT_ID),
     []
   );
   const interstitialAdUnitId = useMemo(
-    () => (Platform.OS === 'ios' ? IOS_INTERSTITIAL_AD_UNIT_ID : IOS_INTERSTITIAL_AD_UNIT_ID),
+    () => (Platform.OS === 'ios' ? IOS_INTERSTITIAL_AD_UNIT_ID : ANDROID_INTERSTITIAL_AD_UNIT_ID),
     []
   );
 
@@ -52,7 +54,7 @@ function useAdsContext() {
   }, []);
 
   const loadInterstitial = useCallback(() => {
-    if (!isSupportedPlatform || adsRemoved) return;
+    if (!isSupportedPlatform || adsRemoved || !interstitialAdUnitId) return;
 
     const interstitial = InterstitialAd.createForAdRequest(interstitialAdUnitId, {
       requestNonPersonalizedAdsOnly: !canRequestPersonalizedAds,
@@ -109,7 +111,7 @@ function useAdsContext() {
 
   return {
     initialized,
-    adsEnabled: initialized && isSupportedPlatform && !adsRemoved,
+    adsEnabled: initialized && isSupportedPlatform && !adsRemoved && !!bannerAdUnitId,
     canRequestPersonalizedAds,
     bannerAdUnitId,
     showInterstitialIfLoaded,
