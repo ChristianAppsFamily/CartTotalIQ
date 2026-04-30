@@ -2,29 +2,25 @@ import { useEffect, useState, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Purchases, { CustomerInfo, PurchasesPackage } from 'react-native-purchases';
+import {
+  finishTransaction,
+  fetchProducts,
+  getAvailablePurchases,
+  initConnection,
+  Product,
+  purchaseErrorListener,
+  purchaseUpdatedListener,
+  requestPurchase,
+} from 'react-native-iap';
 import createContextHook from '@nkzw/create-context-hook';
 
 const ADS_REMOVED_KEY = 'ads_removed';
-
-function getRCToken() {
-  if (__DEV__ || Platform.OS === 'web') return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
-  return Platform.select({
-    ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY,
-    android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
-    default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
-  });
-}
-
-const rcToken = getRCToken();
-if (rcToken) {
-  Purchases.configure({ apiKey: rcToken });
-  console.log('[RC] RevenueCat configured');
-}
+const REMOVE_ADS_PRODUCT_ID = process.env.EXPO_PUBLIC_REMOVE_ADS_PRODUCT_ID ?? 'com.christianappempire.carttotaliq.removeads';
 
 function usePurchaseContext() {
   const queryClient = useQueryClient();
   const [adsRemoved, setAdsRemoved] = useState(false);
+  const [isStoreReady, setIsStoreReady] = useState(false);
 
   const adsRemovedQuery = useQuery({
     queryKey: ['ads_removed'],
@@ -45,102 +41,134 @@ function usePurchaseContext() {
     }
   }, [adsRemovedQuery.data]);
 
-  const _entitlementQuery = useQuery({
-    queryKey: ['rc_entitlements'],
+  const productsQuery = useQuery({
+    queryKey: ['iap_products'],
     queryFn: async () => {
       try {
-        const info: CustomerInfo = await Purchases.getCustomerInfo();
-        const hasRemoveAds = info.entitlements.active['remove_ads'] !== undefined;
-        console.log('[RC] Entitlements checked, remove_ads:', hasRemoveAds);
-        if (hasRemoveAds) {
-          await AsyncStorage.setItem(ADS_REMOVED_KEY, 'true');
-          setAdsRemoved(true);
-        }
-        return hasRemoveAds;
+        if (!isStoreReady || Platform.OS === 'web') return [];
+        return await fetchProducts({ skus: [REMOVE_ADS_PRODUCT_ID], type: 'in-app' });
       } catch (e) {
-        console.log('[RC] Error checking entitlements:', e);
-        return false;
+        console.log('[IAP] Error fetching products:', e);
+        return [];
       }
     },
-    enabled: !!rcToken,
+    enabled: isStoreReady && Platform.OS !== 'web' && !adsRemoved,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
 
-  const offeringsQuery = useQuery({
-    queryKey: ['rc_offerings'],
+  const ownershipQuery = useQuery({
+    queryKey: ['iap_owned_remove_ads'],
     queryFn: async () => {
       try {
-        const offerings = await Purchases.getOfferings();
-        console.log('[RC] Offerings fetched:', offerings.current?.availablePackages?.length ?? 0);
-        return offerings;
+        if (!isStoreReady || Platform.OS === 'web') return false;
+        const purchases = await getAvailablePurchases();
+        const owned = purchases.some(p => p.productId === REMOVE_ADS_PRODUCT_ID);
+        if (owned) {
+          await AsyncStorage.setItem(ADS_REMOVED_KEY, 'true');
+          setAdsRemoved(true);
+          queryClient.setQueryData(['ads_removed'], true);
+        }
+        return owned;
       } catch (e) {
-        console.log('[RC] Error fetching offerings:', e);
-        return null;
+        console.log('[IAP] Error checking owned purchases:', e);
+        return false;
       }
     },
-    enabled: !!rcToken,
+    enabled: isStoreReady && Platform.OS !== 'web',
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
 
   const purchaseMutation = useMutation({
-    mutationFn: async (pkg: PurchasesPackage) => {
-      console.log('[RC] Purchasing package:', pkg.identifier);
-      const result = await Purchases.purchasePackage(pkg);
-      return result;
-    },
-    onSuccess: async (result) => {
-      const hasRemoveAds = result.customerInfo.entitlements.active['remove_ads'] !== undefined;
-      if (hasRemoveAds) {
-        await AsyncStorage.setItem(ADS_REMOVED_KEY, 'true');
-        setAdsRemoved(true);
-        void queryClient.invalidateQueries({ queryKey: ['ads_removed'] });
-        void queryClient.invalidateQueries({ queryKey: ['rc_entitlements'] });
+    mutationFn: async () => {
+      if (Platform.OS === 'web') {
+        throw new Error('In-app purchases are unavailable on web.');
       }
-      console.log('[RC] Purchase successful, remove_ads:', hasRemoveAds);
+      await requestPurchase({
+        request: {
+          ios: { sku: REMOVE_ADS_PRODUCT_ID },
+          android: { skus: [REMOVE_ADS_PRODUCT_ID] },
+        },
+        type: 'in-app',
+      });
+      return true;
     },
-    onError: (error: Error) => {
-      console.log('[RC] Purchase error:', error.message);
+    onError: (error) => {
+      console.log('[IAP] Purchase error:', error);
     },
   });
 
   const restoreMutation = useMutation({
     mutationFn: async () => {
-      console.log('[RC] Restoring purchases...');
-      const info = await Purchases.restorePurchases();
-      return info;
-    },
-    onSuccess: async (info) => {
-      const hasRemoveAds = info.entitlements.active['remove_ads'] !== undefined;
-      if (hasRemoveAds) {
+      if (Platform.OS === 'web') return false;
+      const purchases = await getAvailablePurchases();
+      const owned = purchases.some(p => p.productId === REMOVE_ADS_PRODUCT_ID);
+      if (owned) {
         await AsyncStorage.setItem(ADS_REMOVED_KEY, 'true');
         setAdsRemoved(true);
-        void queryClient.invalidateQueries({ queryKey: ['ads_removed'] });
-        void queryClient.invalidateQueries({ queryKey: ['rc_entitlements'] });
+        queryClient.setQueryData(['ads_removed'], true);
       }
-      console.log('[RC] Restore complete, remove_ads:', hasRemoveAds);
+      return owned;
     },
-    onError: (error: Error) => {
-      console.log('[RC] Restore error:', error.message);
+    onSuccess: (hasRemoveAds) => {
+      console.log('[IAP] Restore complete, remove_ads:', hasRemoveAds);
+    },
+    onError: (error) => {
+      console.log('[IAP] Restore error:', error);
     },
   });
 
-  const getRemoveAdsPackage = useCallback((): PurchasesPackage | null => {
-    const offerings = offeringsQuery.data;
-    if (!offerings?.current?.availablePackages) return null;
-    return offerings.current.availablePackages[0] ?? null;
-  }, [offeringsQuery.data]);
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const setup = async () => {
+      try {
+        await initConnection();
+        setIsStoreReady(true);
+      } catch (err) {
+        console.log('[IAP] initConnection error:', err);
+      }
+    };
+
+    void setup();
+
+    const purchaseUpdateSub = purchaseUpdatedListener(async (purchase) => {
+      try {
+        if (purchase.productId === REMOVE_ADS_PRODUCT_ID) {
+          await finishTransaction({ purchase, isConsumable: false });
+          await AsyncStorage.setItem(ADS_REMOVED_KEY, 'true');
+          setAdsRemoved(true);
+          queryClient.setQueryData(['ads_removed'], true);
+        }
+      } catch (err) {
+        console.log('[IAP] finishTransaction error:', err);
+      }
+    });
+    const purchaseErrorSub = purchaseErrorListener((error) => {
+      console.log('[IAP] purchaseErrorListener:', error);
+    });
+
+    return () => {
+      purchaseUpdateSub.remove();
+      purchaseErrorSub.remove();
+    };
+  }, [queryClient]);
+
+  const getRemoveAdsPackage = useCallback((): Product | null => {
+    if (!productsQuery.data?.length) return null;
+    return productsQuery.data[0] as Product;
+  }, [productsQuery.data]);
 
   return {
     adsRemoved,
     isLoading: adsRemovedQuery.isLoading,
-    offerings: offeringsQuery.data,
-    offeringsLoading: offeringsQuery.isLoading,
+    offerings: productsQuery.data,
+    offeringsLoading: productsQuery.isLoading || ownershipQuery.isLoading,
     getRemoveAdsPackage,
-    purchaseRemoveAds: purchaseMutation.mutate,
+    purchaseRemoveAds: () => purchaseMutation.mutate(),
     isPurchasing: purchaseMutation.isPending,
     purchaseError: purchaseMutation.error,
     restorePurchases: restoreMutation.mutate,

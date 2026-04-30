@@ -18,7 +18,7 @@
       "bundleIdentifier": "app.rork.g9wbdtnl64envtjt05itd",
       "infoPlist": {
         "NSUserTrackingUsageDescription": "We use your data to deliver more relevant ads and support app improvements.",
-        "GADApplicationIdentifier": "ca-app-pub-3940256099942544~1458002511"
+        "GADApplicationIdentifier": "ca-app-pub-3002325591150738~REPLACE_WITH_IOS_APP_ID"
       }
     },
     "android": {
@@ -41,8 +41,8 @@
       [
         "react-native-google-mobile-ads",
         {
-          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3002325591150738~REPLACE_WITH_IOS_APP_ID",
+          "androidAppId": "ca-app-pub-3002325591150738~REPLACE_WITH_ANDROID_APP_ID",
           "delayAppMeasurementInit": true
         }
       ],

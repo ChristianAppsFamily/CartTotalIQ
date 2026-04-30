@@ -53,18 +53,17 @@ export default function SettingsScreen() {
   const [editValue, setEditValue] = useState('');
 
   const handleRemoveAds = () => {
-    const pkg = getRemoveAdsPackage();
-    if (!pkg) {
+    const product = getRemoveAdsPackage();
+    if (!product) {
       Alert.alert('Unavailable', 'Remove Ads purchase is not available right now. Please try again later.');
       return;
     }
-    purchaseRemoveAds(pkg);
+    purchaseRemoveAds();
   };
 
   const handleRestore = () => {
     restorePurchases(undefined, {
-      onSuccess: (info) => {
-        const hasIt = info.entitlements.active['remove_ads'] !== undefined;
+      onSuccess: (hasIt) => {
         if (hasIt) {
           Alert.alert('Restored', 'Your Remove Ads purchase has been restored!');
         } else {
